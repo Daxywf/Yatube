@@ -1,11 +1,15 @@
 from http import HTTPStatus
 
-from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import Client, TestCase
+from django.urls import reverse
 
-from ..models import Group, Post
+from ..models import Group, Post, User
 
-User = get_user_model()
+INDEX_URL = reverse('posts:index')
+FOLLOW_URL = reverse('posts:follow_index')
+CREATE_URL = reverse('posts:post_create')
+UNEXISTING_URL = '/unexisting_page/'
 
 
 class PostsURLTests(TestCase):
@@ -19,70 +23,120 @@ class PostsURLTests(TestCase):
         cls.author = User.objects.create(
             username='test_profile'
         )
-        cls.not_author = User.objects.create(
+        cls.not_author1 = User.objects.create(
             username='test_profile2'
         )
         cls.post = Post.objects.create(
             text='test text',
-            author=User.objects.get(username='test_profile')
+            author=cls.author
+        )
+        cls.PROFILE_URL = reverse(
+            'posts:profile',
+            kwargs={'username': cls.author.username}
+        )
+        cls.GROUP_URL = reverse(
+            'posts:group_posts',
+            kwargs={'slug': cls.group.slug}
+        )
+        cls.POST_URL = reverse(
+            'posts:post_detail',
+            kwargs={'post_id': cls.post.id}
+        )
+        cls.POSTS_EDIT_URL = reverse(
+            'posts:post_edit',
+            kwargs={'post_id': cls.post.id}
         )
 
     def setUp(self):
-        self.guest_client = Client()
-        self.user = PostsURLTests.author
         self.authorized_client = Client()
-        self.authorized_client.force_login(self.user)
+        self.authorized_client.force_login(self.author)
         self.not_author = Client()
-        self.not_author.force_login(PostsURLTests.not_author)
+        self.not_author.force_login(self.not_author1)
 
-    def test_page_responses(self):
+    def test_guest_responses(self):
         page_status_codes = {
-            HTTPStatus.OK: '/',
-            HTTPStatus.OK: f'/group/{PostsURLTests.group.slug}/',
-            HTTPStatus.OK: f'/posts/{PostsURLTests.post.id}/',
-            HTTPStatus.OK: f'/profile/{PostsURLTests.author.username}/',
-            HTTPStatus.NOT_FOUND: '/unexisting_page/',
+            INDEX_URL: HTTPStatus.OK,
+            self.GROUP_URL: HTTPStatus.OK,
+            self.POST_URL: HTTPStatus.OK,
+            self.PROFILE_URL: HTTPStatus.OK,
+            UNEXISTING_URL: HTTPStatus.NOT_FOUND,
+            CREATE_URL: HTTPStatus.FOUND,
+            self.POSTS_EDIT_URL: HTTPStatus.FOUND
         }
-        for status, adress in page_status_codes.items():
+        for adress, status in page_status_codes.items():
             with self.subTest(adress=adress):
-                response = self.guest_client.get(adress)
-                self.assertEqual(response.status_code, status)
+                self.assertEqual(Client().get(adress).status_code, status)
 
-    def test_urls_uses_correct_template(self):
+    def test_not_author_responses(self):
+        page_status_codes = {
+            INDEX_URL: HTTPStatus.OK,
+            self.GROUP_URL: HTTPStatus.OK,
+            self.POST_URL: HTTPStatus.OK,
+            self.PROFILE_URL: HTTPStatus.OK,
+            UNEXISTING_URL: HTTPStatus.NOT_FOUND,
+            CREATE_URL: HTTPStatus.OK,
+            self.POSTS_EDIT_URL: HTTPStatus.FOUND
+        }
+        for adress, status in page_status_codes.items():
+            with self.subTest(adress=adress):
+                self.assertEqual(
+                    self.not_author.get(adress).status_code, status
+                )
+
+    def test_author_responses(self):
+        page_status_codes = {
+            INDEX_URL: HTTPStatus.OK,
+            self.GROUP_URL: HTTPStatus.OK,
+            self.POST_URL: HTTPStatus.OK,
+            self.PROFILE_URL: HTTPStatus.OK,
+            UNEXISTING_URL: HTTPStatus.NOT_FOUND,
+            CREATE_URL: HTTPStatus.OK,
+            self.POSTS_EDIT_URL: HTTPStatus.OK
+        }
+        for adress, status in page_status_codes.items():
+            with self.subTest(adress=adress):
+                self.assertEqual(
+                    self.authorized_client.get(adress).status_code, status
+                )
+
+    def test_urls_use_correct_templates(self):
         templates_url_names = {
-            '/': 'posts/index.html',
-            f'/profile/{PostsURLTests.author.username}/': 'posts/profile.html',
-            f'/group/{PostsURLTests.group.slug}/': 'posts/group_list.html',
-            f'/posts/{PostsURLTests.post.id}/': 'posts/post_detail.html',
-            '/create/': 'posts/create_post.html',
-            f'/posts/{PostsURLTests.post.id}/edit/': 'posts/create_post.html',
+            INDEX_URL: 'posts/index.html',
+            self.PROFILE_URL: 'posts/profile.html',
+            self.GROUP_URL: 'posts/group_list.html',
+            self.POST_URL: 'posts/post_detail.html',
+            CREATE_URL: 'posts/create_post.html',
+            self.POSTS_EDIT_URL: 'posts/create_post.html',
+            FOLLOW_URL: 'posts/follow.html',
         }
         for adress, template in templates_url_names.items():
             with self.subTest(adress=adress):
-                response = self.authorized_client.get(adress)
-                self.assertTemplateUsed(response, template)
+                cache.clear()
+                self.assertTemplateUsed(
+                    self.authorized_client.get(adress),
+                    template
+                )
 
-    def test_create_url_redirect_anonymous_on_login(self):
-        response = self.guest_client.get('/create/', follow=True)
-        self.assertRedirects(
-            response, '/auth/login/?next=/create/'
-        )
-
-    def test_post_edit_url_redirect_anonymous_on_login(self):
-        response = self.guest_client.get(
-            f'/posts/{PostsURLTests.post.id}/edit/',
-            follow=True
-        )
-        self.assertRedirects(
-            response,
-            f'/auth/login/?next=/posts/{PostsURLTests.post.id}/edit/'
-        )
-
-    def test_post_edit_url_reqirect_non_author_on_login(self):
-        response = self.not_author.get(
-            f'/posts/{PostsURLTests.post.id}/edit/',
-            follow=True
-        )
-        self.assertRedirects(
-            response, f'/posts/{PostsURLTests.post.id}/'
-        )
+    def test_redirects(self):
+        redirects = [
+            [
+                CREATE_URL,
+                Client(),
+                '/auth/login/?next=/create/'
+            ],
+            [
+                self.POSTS_EDIT_URL,
+                Client(),
+                f'/auth/login/?next=/posts/{self.post.id}/edit/'
+            ],
+            [
+                self.POSTS_EDIT_URL,
+                self.not_author,
+                f'/posts/{self.post.id}/'
+            ]
+        ]
+        for url, client, redirect_url in redirects:
+            self.assertRedirects(
+                client.get(url, follow=True),
+                redirect_url
+            )

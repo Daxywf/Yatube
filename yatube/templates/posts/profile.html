@@ -3,49 +3,9 @@
 {% block title%} Профайл пользователя {{ author.username }} {% endblock %}
 {% block header %}{% endblock%}
 {% block content %}      
-  <div class="mb-5">
-    <h1>Все посты пользователя {{ author.get_full_name }}</h1>
-    <h3>Всего постов: {{ author.posts.count }}</h3>
-    {% if following %}
-      <a
-        class="btn btn-lg btn-light"
-        href="{% url 'posts:profile_unfollow' author.username %}" role="button"
-      >
-        Отписаться
-      </a>
-    {% else %}
-      <a
-        class="btn btn-lg btn-primary"
-        href="{% url 'posts:profile_follow' author.username %}" role="button"
-      >
-        Подписаться
-      </a>
-    {% endif %}
-  </div>
+  {% include 'posts/includes/author_card.html' %}
   {% for post in page_obj %}
-    <article>
-      <ul>
-        <li>
-          Автор: <a href="{% url 'posts:profile' post.author.username %}"> {{ post.author.username }}</a> 
-        </li>
-        <li>
-          Дата публикации: {{ post.pub_date|date:"j E Y" }}
-        </li>
-        {% if post.group %}
-          <li>
-            Группа: <a href="{% url 'posts:group_posts' post.group.slug %}"> {{ post.group.title }}</a>
-          </li>         
-        {% endif %}  
-      </ul>
-      {% thumbnail post.image "960x339" crop="center" upscale=True as im %}
-        <img class="card-img my-2" src="{{ im.url }}">
-      {% endthumbnail %}
-      <p>{{ post.text|linebreaksbr|truncatewords:70 }}</p>
-      <a href="{% url 'posts:post_detail' post.id %}">Подробная информация </a><br>
-      {% if post.author == request.user %} 
-        <a href="{% url 'posts:post_edit' post.id %}"> Редактировать </a> 
-      {% endif %}
-    </article>            
+    {% include 'posts/includes/post_card.html' %}
     {% if not forloop.last %}<hr>{% endif %}
   {% endfor %}
   {% include 'includes/paginator.html' %}  

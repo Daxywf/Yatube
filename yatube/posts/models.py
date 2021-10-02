@@ -7,7 +7,13 @@ User = get_user_model()
 class Group(models.Model):
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)
-    description = models.TextField()
+    description = models.TextField(
+        'Описание группы'
+    )
+
+    class Meta:
+        verbose_name = 'Группа'
+        verbose_name_plural = 'Группы'
 
     def __str__(self):
         return self.title
@@ -26,7 +32,7 @@ class Post(models.Model):
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name="posts",
+        related_name='posts',
         verbose_name='Автор'
     )
     group = models.ForeignKey(
@@ -58,30 +64,49 @@ class Comment(models.Model):
     post = models.ForeignKey(
         Post,
         on_delete=models.CASCADE,
-        related_name='comments'
+        related_name='comments',
+        verbose_name='Комментируемый пост'
     )
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='comments'
+        related_name='comments',
+        verbose_name='Автор комментария'
     )
-    text = models.TextField()
+    text = models.TextField(
+        'Текст комментария'
+    )
     created = models.DateTimeField(
         auto_now_add=True
     )
+
+    class Meta:
+        verbose_name = 'Комментарий'
+        verbose_name_plural = 'Комментарии'
+
+    def __str__(self):
+        return (f'Id поста: {self.post.id}'
+                f', Автор: {self.author.username}')
 
 
 class Follow(models.Model):
     user = models.ForeignKey(
         User,
         related_name='follower',
-        on_delete=models.CASCADE
+        verbose_name='Подписчик',
+        on_delete=models.CASCADE,
     )
     author = models.ForeignKey(
         User,
         related_name='following',
-        on_delete=models.CASCADE
+        verbose_name='Автор',
+        on_delete=models.CASCADE,
     )
 
+    class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+
     def __str__(self):
-        return self.user
+        return (f'Пользователь: {self.user.username}'
+                f', Автор: {self.author.username}')

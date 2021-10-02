@@ -148,6 +148,6 @@ LOGIN_REDIRECT_URL = ''
 
 LOGIN_URL = '/auth/login/'
 
-PAG_VAL = 10
+PAGINATION_VALUE = 10
 
 CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
