@@ -20,6 +20,10 @@ SMALL_GIF = (
     b'\x0A\x00\x3B'
 )
 CREATE_URL = reverse('posts:post_create')
+PROFILE_URL = reverse(
+    'posts:profile',
+    kwargs={'username': 'test_profile'}
+)
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
@@ -52,10 +56,6 @@ class PostCreateFormTests(TestCase):
             'posts:post_detail',
             kwargs={'post_id': cls.post.id}
         )
-        cls.PROFILE_URL = reverse(
-            'posts:profile',
-            kwargs={'username': cls.user.username}
-        )
         cls.ADD_COMMENT_URL = reverse(
             'posts:add_comment',
             kwargs={'post_id': cls.post.id}
@@ -72,8 +72,8 @@ class PostCreateFormTests(TestCase):
         self.authorized_client.force_login(self.user)
 
     def test_create_post(self):
-        id_list1 = list(Post.objects.values_list('pk', flat=True))
-        posts_count = len(id_list1)
+        ids1 = set(post.id for post in Post.objects.all())
+        posts_count = len(ids1)
         uploaded = SimpleUploadedFile(
             name='small.gif',
             content=SMALL_GIF,
@@ -89,16 +89,16 @@ class PostCreateFormTests(TestCase):
             data=form_data,
             follow=True
         )
-        id_list2 = list(Post.objects.values_list('pk', flat=True))
-        new_posts_count = len(id_list2)
+        ids2 = set(post.id for post in Post.objects.all())
+        new_posts_count = len(ids2)
         self.assertRedirects(
             response,
-            self.PROFILE_URL
+            PROFILE_URL
         )
-        self.assertEqual(len(set(id_list2) - set(id_list1)), 1)
-        post = Post.objects.filter(
-            pk__in=id_list2
-        ).exclude(pk__in=id_list1)[0]
+        self.assertEqual(len(ids2 - ids1), 1)
+        post = Post.objects.get(
+            id__in=(ids2 - ids1)
+        )
         self.assertEqual(new_posts_count, posts_count + 1)
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.group.id, form_data['group'])
@@ -127,6 +127,7 @@ class PostCreateFormTests(TestCase):
             self.POST_URL
         )
         post = response.context['post']
+        self.assertEqual(post.author, self.post.author)
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.group.id, form_data['group'])
         self.assertEqual(post.image, 'posts/small2.gif')
@@ -189,13 +190,12 @@ class PostCreateFormTests(TestCase):
         )
         new_comments_count = self.post.comments.count()
         self.assertEqual(comments_count + 1, new_comments_count)
-        comment = self.post.comments.filter(
-            author=self.user
-        )[0]
+        comment = self.post.comments.last()
         self.assertEqual(comment.text, form_data['text'])
         self.assertEqual(comment.author, self.user)
+        self.assertEqual(comment.post, self.post)
 
-    def test_post_create_and_edit_pages_show_correct_context(self):
+    def test_post_create_page_shows_correct_context(self):
         form_fields = {
             'text': forms.fields.CharField,
             'group': forms.fields.ChoiceField,
@@ -203,11 +203,18 @@ class PostCreateFormTests(TestCase):
         }
         for value, expected in form_fields.items():
             with self.subTest(value=value):
-                reverse_names = [
-                    CREATE_URL,
-                    self.EDIT_URL
-                ]
-                for reverse_name in reverse_names:
-                    response = self.authorized_client.get(reverse_name)
-                    form_field = response.context.get('form').fields.get(value)
-                    self.assertIsInstance(form_field, expected)
+                response = self.authorized_client.get(CREATE_URL)
+                form_field = response.context.get('form').fields.get(value)
+                self.assertIsInstance(form_field, expected)
+
+    def test_post_edit_page_shows_correct_context(self):
+        form_fields = {
+            'text': forms.fields.CharField,
+            'group': forms.fields.ChoiceField,
+            'image': forms.fields.ImageField
+        }
+        for value, expected in form_fields.items():
+            with self.subTest(value=value):
+                response = self.authorized_client.get(self.EDIT_URL)
+                form_field = response.context.get('form').fields.get(value)
+                self.assertIsInstance(form_field, expected)

@@ -19,8 +19,31 @@ SMALL_GIF = (
     b'\x0A\x00\x3B'
 )
 INDEX_URL = reverse('posts:index')
-FOLLOW_URL = reverse('posts:follow_index')
 FOLLOW_INDEX_URL = reverse('posts:follow_index')
+PROFILE_URL1 = reverse(
+    'posts:profile',
+    kwargs={'username': 'test_profile'}
+)
+PROFILE_URL2 = reverse(
+    'posts:profile',
+    kwargs={'username': 'test_profile2'}
+)
+GROUP_URL1 = reverse(
+    'posts:group_posts',
+    kwargs={'slug': 'test-slug'}
+)
+GROUP_URL2 = reverse(
+    'posts:group_posts',
+    kwargs={'slug': 'wrong-group'}
+)
+FOLLOW_URL = reverse(
+    'posts:profile_follow',
+    kwargs={'username': 'test_profile2'}
+)
+UNFOLLOW_URL = reverse(
+    'posts:profile_unfollow',
+    kwargs={'username': 'test_profile2'}
+)
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
@@ -30,7 +53,8 @@ class PostsPagesTests(TestCase):
         super().setUpClass()
         cls.group = Group.objects.create(
             title='Тестовый заголовок',
-            slug='test-slug'
+            slug='test-slug',
+            description='test-description'
         )
 
         cls.group2 = Group.objects.create(
@@ -43,7 +67,11 @@ class PostsPagesTests(TestCase):
             content_type='image/gif'
         )
         cls.author = User.objects.create(username='test_profile')
-        cls.author2 = User.objects.create(username='test_profile2')
+        cls.author2 = User.objects.create(
+            username='test_profile2',
+            first_name='test_1st_name',
+            last_name='test_last_name'
+        )
         for i in range(1, settings.PAGINATION_VALUE + 1):
             Post.objects.create(
                 text=f'test text{i}',
@@ -55,37 +83,11 @@ class PostsPagesTests(TestCase):
             author=cls.author,
             group=cls.group
         )
-        cls.post2 = Post.objects.create(
-            text='test post2',
-            author=cls.author2,
-            group=cls.group2,
-            image=cls.uploaded
-        )
         cls.follow = Follow.objects.create(
             user=cls.author,
             author=cls.author2
         )
         cls.user2 = User.objects.create(username='user2')
-        cls.PROFILE_URL1 = reverse(
-            'posts:profile',
-            kwargs={'username': cls.author.username}
-        )
-        cls.PROFILE_URL2 = reverse(
-            'posts:profile',
-            kwargs={'username': cls.author2.username}
-        )
-        cls.GROUP_URL1 = reverse(
-            'posts:group_posts',
-            kwargs={'slug': cls.group.slug}
-        )
-        cls.GROUP_URL2 = reverse(
-            'posts:group_posts',
-            kwargs={'slug': cls.group2.slug}
-        )
-        cls.POST_URL = reverse(
-            'posts:post_detail',
-            kwargs={'post_id': cls.post2.id}
-        )
 
     @classmethod
     def tearDownClass(cls):
@@ -93,6 +95,17 @@ class PostsPagesTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
+        self.post = Post.objects.create(
+            text='text',
+            author=self.author2,
+            group=self.group2,
+            image=self.uploaded
+        )
+
+        self.POST_URL = reverse(
+            'posts:post_detail',
+            kwargs={'post_id': self.post.id}
+        )
         self.authorized_client = Client()
         self.authorized_client.force_login(self.author)
         self.authorized_client2 = Client()
@@ -103,8 +116,8 @@ class PostsPagesTests(TestCase):
 
     def test_pages_paginator(self):
         responses = [
-            self.PROFILE_URL1,
-            self.GROUP_URL1,
+            PROFILE_URL1,
+            GROUP_URL1,
             INDEX_URL,
         ]
         for reverse_name in responses:
@@ -117,58 +130,63 @@ class PostsPagesTests(TestCase):
 
     def test_correct_post_appears_on_pages(self):
         def check_post_info(post):
-            self.assertEqual(post.text, self.post2.text)
-            self.assertEqual(post.author, self.post2.author)
-            self.assertEqual(post.group, self.post2.group)
-            self.assertEqual(post.image, self.post2.image)
+            self.assertEqual(post.text, self.post.text)
+            self.assertEqual(post.author, self.post.author)
+            self.assertEqual(post.group, self.post.group)
+            self.assertEqual(post.image, self.post.image)
 
         pages = [
             INDEX_URL,
-            self.GROUP_URL2,
-            self.PROFILE_URL2,
+            GROUP_URL2,
+            PROFILE_URL2,
             FOLLOW_INDEX_URL
         ]
         for reverse_name in pages:
             response = self.authorized_client.get(reverse_name)
-            post = response.context['page_obj'][0]
+            post = Post.objects.get(id=self.post.id)
+            self.assertIn(post, response.context['page_obj'])
             check_post_info(post)
         response = self.authorized_client.get(self.POST_URL)
         post = response.context['post']
         check_post_info(post)
 
     def test_index_cache(self):
-        response = self.authorized_client.get(INDEX_URL)
-        first_content = response.content
-        response.context['page_obj'][0].delete()
-        response = self.authorized_client.get(INDEX_URL)
-        content_after_deleting = response.content
+        first_content = self.authorized_client.get(
+            INDEX_URL
+        ).content
+        self.post.delete()
+        content_after_deleting = self.authorized_client.get(
+            INDEX_URL
+        ).content
         cache.clear()
-        response = self.authorized_client.get(INDEX_URL)
-        content_after_cleaning = response.content
+        content_after_cleaning = self.authorized_client.get(
+            INDEX_URL
+        ).content
         self.assertEqual(first_content, content_after_deleting)
         self.assertNotEqual(first_content, content_after_cleaning)
 
     def test_post_not_exists_on_wrong_group_page(self):
-        response = self.authorized_client.get(self.GROUP_URL1)
-        self.assertNotIn(self.post2, response.context['page_obj'])
+        response = self.authorized_client.get(GROUP_URL1)
+        self.assertNotIn(self.post, response.context['page_obj'])
 
     def test_post_on_group_page_has_correct_group(self):
-        response = self.authorized_client.get(self.GROUP_URL2)
-        group_post = response.context['page_obj'][0]
-        self.assertEqual(group_post.group, self.group2)
+        response = self.authorized_client.get(GROUP_URL1)
+        group = response.context['group']
+        self.assertEqual(group.id, self.group.id)
+        self.assertEqual(group.title, self.group.title)
+        self.assertEqual(group.slug, self.group.slug)
+        self.assertEqual(group.description, self.group.description)
 
     def test_post_on_profile_page_has_correct_author(self):
-        response = self.authorized_client.get(self.PROFILE_URL2)
-        profile_post = response.context['page_obj'][0]
-        self.assertEqual(profile_post.author, self.author2)
+        response = self.authorized_client.get(PROFILE_URL2)
+        author = response.context['author']
+        self.assertEqual(author.id, self.author2.id)
+        self.assertEqual(author.username, self.author2.username)
+        self.assertEqual(author.first_name, self.author2.first_name)
+        self.assertEqual(author.last_name, self.author2.last_name)
 
     def test_follow(self):
-        self.user_client.get(
-            reverse(
-                'posts:profile_follow',
-                kwargs={'username': self.author2.username}
-            )
-        )
+        self.user_client.get(FOLLOW_URL)
         self.assertTrue(
             Follow.objects.filter(
                 user=self.user2,
@@ -177,12 +195,7 @@ class PostsPagesTests(TestCase):
         )
 
     def test_unfollow(self):
-        self.authorized_client.get(
-            reverse(
-                'posts:profile_unfollow',
-                kwargs={'username': self.author2.username}
-            )
-        )
+        self.authorized_client.get(UNFOLLOW_URL)
         self.assertFalse(
             Follow.objects.filter(
                 user=self.author,
@@ -190,18 +203,9 @@ class PostsPagesTests(TestCase):
             ).exists()
         )
 
-    def test_post_appearance(self):
-        response = self.authorized_client.get(
-            reverse('posts:follow_index')
-        )
-        self.assertIn(
-            self.post2, response.context['page_obj']
-        )
-        self.assertEqual(self.post2.author, self.author2)
-
     def test_post_not_exists_on_other_follow_index(self):
         response = self.authorized_client2.get(
-            reverse('posts:follow_index')
+            FOLLOW_INDEX_URL
         )
         self.assertNotIn(
             self.post, response.context['page_obj']

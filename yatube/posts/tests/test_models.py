@@ -19,12 +19,8 @@ class PostModelTest(TestCase):
         )
 
     def test_models_have_correct_object_names(self):
-        group = self.group
-        group_title = group.title
-        post = self.post
-        post_text = post.text
-        self.assertEqual(str(group), group_title)
-        self.assertEqual(str(post), post_text[:15])
+        self.assertEqual(str(self.group), self.group.title)
+        self.assertEqual(str(self.post), self.post.text[:15])
 
     def test_verbose_name(self):
         field_verboses = {

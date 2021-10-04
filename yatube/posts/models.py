@@ -5,10 +5,16 @@ User = get_user_model()
 
 
 class Group(models.Model):
-    title = models.CharField(max_length=200)
-    slug = models.SlugField(unique=True)
+    title = models.CharField(
+        max_length=200,
+        verbose_name='Название группы'
+    )
+    slug = models.SlugField(
+        unique=True,
+        verbose_name='Адрес группы'
+    )
     description = models.TextField(
-        'Описание группы'
+        verbose_name='Описание группы'
     )
 
     class Meta:
@@ -22,12 +28,12 @@ class Group(models.Model):
 class Post(models.Model):
     text = models.TextField(
         'Текст поста',
-        help_text='Введите текст поста'
+        help_text='Введите текст поста',
     )
     pub_date = models.DateTimeField(
         'Дата публикации',
         auto_now_add=True,
-        db_index=True
+        db_index=True,
     )
     author = models.ForeignKey(
         User,
@@ -48,7 +54,7 @@ class Post(models.Model):
     image = models.ImageField(
         'Картинка',
         upload_to='posts/',
-        blank=True
+        blank=True,
     )
 
     class Meta:
@@ -74,10 +80,11 @@ class Comment(models.Model):
         verbose_name='Автор комментария'
     )
     text = models.TextField(
-        'Текст комментария'
+        'Текст комментария',
     )
     created = models.DateTimeField(
-        auto_now_add=True
+        auto_now_add=True,
+        verbose_name='Дата публикации'
     )
 
     class Meta:
@@ -85,7 +92,7 @@ class Comment(models.Model):
         verbose_name_plural = 'Комментарии'
 
     def __str__(self):
-        return (f'Id поста: {self.post.id}'
+        return (f'Текст: {self.text}'
                 f', Автор: {self.author.username}')
 
 
