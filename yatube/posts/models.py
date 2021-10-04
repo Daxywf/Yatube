@@ -11,7 +11,7 @@ class Group(models.Model):
     )
     slug = models.SlugField(
         unique=True,
-        verbose_name='Адрес группы'
+        verbose_name='Слаг группы'
     )
     description = models.TextField(
         verbose_name='Описание группы'
@@ -92,8 +92,9 @@ class Comment(models.Model):
         verbose_name_plural = 'Комментарии'
 
     def __str__(self):
-        return (f'Текст: {self.text}'
-                f', Автор: {self.author.username}')
+        return (f'Текст: {self.text[:20]}'
+                f', Автор: {self.author.username}'
+                f', Дата и время написания: {self.created}')
 
 
 class Follow(models.Model):

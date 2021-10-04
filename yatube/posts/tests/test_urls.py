@@ -11,13 +11,16 @@ INDEX_URL = reverse('posts:index')
 FOLLOW_URL = reverse('posts:follow_index')
 CREATE_URL = reverse('posts:post_create')
 UNEXISTING_URL = '/unexisting_page/'
+USERNAME = 'test_profile'
+USERNAME2 = 'test_profile2'
 PROFILE_URL = reverse(
     'posts:profile',
-    kwargs={'username': 'test_profile'}
+    kwargs={'username': USERNAME}
 )
+SLUG = 'test-slug'
 GROUP_URL = reverse(
     'posts:group_posts',
-    kwargs={'slug': 'test-slug'}
+    kwargs={'slug': SLUG}
 )
 AUTH_TO_CREATE_URL = f'{settings.LOGIN_URL}?next={CREATE_URL}'
 
@@ -28,13 +31,13 @@ class PostsURLTests(TestCase):
         super().setUpClass()
         cls.group = Group.objects.create(
             title='Тестовый заголовок',
-            slug='test-slug',
+            slug=SLUG,
         )
         cls.author = User.objects.create(
-            username='test_profile'
+            username=USERNAME
         )
         cls.not_author1 = User.objects.create(
-            username='test_profile2',
+            username=USERNAME2,
         )
         cls.post = Post.objects.create(
             text='test text',
@@ -52,6 +55,7 @@ class PostsURLTests(TestCase):
                                 f'?next={cls.POSTS_EDIT_URL}')
 
     def setUp(self):
+        self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(self.author)
         self.not_author = Client()
@@ -59,29 +63,24 @@ class PostsURLTests(TestCase):
 
     def test_pages_responses(self):
         pages = [
-            [INDEX_URL, Client(), HTTPStatus.OK],
-            [GROUP_URL, Client(), HTTPStatus.OK],
-            [self.POST_URL, Client(), HTTPStatus.OK],
-            [PROFILE_URL, Client(), HTTPStatus.OK],
-            [UNEXISTING_URL, Client(), HTTPStatus.NOT_FOUND],
-            [CREATE_URL, Client(), HTTPStatus.FOUND],
+            [INDEX_URL, self.guest_client, HTTPStatus.OK],
+            [GROUP_URL, self.guest_client, HTTPStatus.OK],
+            [self.POST_URL, self.guest_client, HTTPStatus.OK],
+            [PROFILE_URL, self.guest_client, HTTPStatus.OK],
+            [UNEXISTING_URL, self.guest_client, HTTPStatus.NOT_FOUND],
+            [CREATE_URL, self.guest_client, HTTPStatus.FOUND],
             [CREATE_URL, self.not_author, HTTPStatus.OK],
-            [self.POSTS_EDIT_URL, Client(), HTTPStatus.FOUND],
-            [
-                self.POSTS_EDIT_URL,
-                self.not_author,
-                HTTPStatus.FOUND
-            ],
-            [
-                self.POSTS_EDIT_URL,
-                self.authorized_client,
-                HTTPStatus.OK
-            ]
+            [self.POSTS_EDIT_URL, self.guest_client, HTTPStatus.FOUND],
+            [self.POSTS_EDIT_URL, self.not_author,
+             HTTPStatus.FOUND],
+            [self.POSTS_EDIT_URL, self.authorized_client,
+             HTTPStatus.OK]
         ]
         for adress, client, status in pages:
-            self.assertEqual(
-                client.get(adress).status_code, status
-            )
+            with self.subTest(adress=adress):
+                self.assertEqual(
+                    client.get(adress).status_code, status
+                )
 
     def test_urls_use_correct_templates(self):
         templates_url_names = {
@@ -103,24 +102,16 @@ class PostsURLTests(TestCase):
 
     def test_redirects(self):
         redirects = [
-            [
-                CREATE_URL,
-                Client(),
-                AUTH_TO_CREATE_URL
-            ],
-            [
-                self.POSTS_EDIT_URL,
-                Client(),
-                self.AUTH_TO_EDIT_URL
-            ],
-            [
-                self.POSTS_EDIT_URL,
-                self.not_author,
-                self.POST_URL
-            ]
+            [CREATE_URL, self.guest_client,
+             AUTH_TO_CREATE_URL],
+            [self.POSTS_EDIT_URL, self.guest_client,
+             self.AUTH_TO_EDIT_URL],
+            [self.POSTS_EDIT_URL, self.not_author,
+             self.POST_URL]
         ]
         for url, client, redirect_url in redirects:
-            self.assertRedirects(
-                client.get(url, follow=True),
-                redirect_url
-            )
+            with self.subTest(url=url):
+                self.assertRedirects(
+                    client.get(url, follow=True),
+                    redirect_url
+                )

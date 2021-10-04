@@ -7,6 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
+
 from ..models import Follow, Group, Post, User
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
@@ -20,29 +21,33 @@ SMALL_GIF = (
 )
 INDEX_URL = reverse('posts:index')
 FOLLOW_INDEX_URL = reverse('posts:follow_index')
+USERNAME1 = 'test_profile'
+USERNAME2 = 'test_profile2'
+SLUG1 = 'test-slug'
+SLUG2 = 'wrong-group'
 PROFILE_URL1 = reverse(
     'posts:profile',
-    kwargs={'username': 'test_profile'}
+    kwargs={'username': USERNAME1}
 )
 PROFILE_URL2 = reverse(
     'posts:profile',
-    kwargs={'username': 'test_profile2'}
+    kwargs={'username': USERNAME2}
 )
 GROUP_URL1 = reverse(
     'posts:group_posts',
-    kwargs={'slug': 'test-slug'}
+    kwargs={'slug': SLUG1}
 )
 GROUP_URL2 = reverse(
     'posts:group_posts',
-    kwargs={'slug': 'wrong-group'}
+    kwargs={'slug': SLUG2}
 )
 FOLLOW_URL = reverse(
     'posts:profile_follow',
-    kwargs={'username': 'test_profile2'}
+    kwargs={'username': USERNAME2}
 )
 UNFOLLOW_URL = reverse(
     'posts:profile_unfollow',
-    kwargs={'username': 'test_profile2'}
+    kwargs={'username': USERNAME2}
 )
 
 
@@ -53,41 +58,38 @@ class PostsPagesTests(TestCase):
         super().setUpClass()
         cls.group = Group.objects.create(
             title='Тестовый заголовок',
-            slug='test-slug',
+            slug=SLUG1,
             description='test-description'
         )
 
         cls.group2 = Group.objects.create(
             title='Тестовый заголовок2',
-            slug='wrong-group'
+            slug=SLUG2
         )
         cls.uploaded = SimpleUploadedFile(
             name='small.gif',
             content=SMALL_GIF,
             content_type='image/gif'
         )
-        cls.author = User.objects.create(username='test_profile')
+        cls.author = User.objects.create(username=USERNAME1)
         cls.author2 = User.objects.create(
-            username='test_profile2',
-            first_name='test_1st_name',
-            last_name='test_last_name'
-        )
-        for i in range(1, settings.PAGINATION_VALUE + 1):
-            Post.objects.create(
-                text=f'test text{i}',
-                author=cls.author,
-                group=cls.group
-            )
-        cls.post = Post.objects.create(
-            text='test post1',
-            author=cls.author,
-            group=cls.group
+            username=USERNAME2,
         )
         cls.follow = Follow.objects.create(
             user=cls.author,
             author=cls.author2
         )
         cls.user2 = User.objects.create(username='user2')
+        cls.post = Post.objects.create(
+            text='text',
+            author=cls.author2,
+            group=cls.group2,
+            image=cls.uploaded
+        )
+        cls.POST_URL = reverse(
+            'posts:post_detail',
+            kwargs={'post_id': cls.post.id}
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -95,17 +97,6 @@ class PostsPagesTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
-        self.post = Post.objects.create(
-            text='text',
-            author=self.author2,
-            group=self.group2,
-            image=self.uploaded
-        )
-
-        self.POST_URL = reverse(
-            'posts:post_detail',
-            kwargs={'post_id': self.post.id}
-        )
         self.authorized_client = Client()
         self.authorized_client.force_login(self.author)
         self.authorized_client2 = Client()
@@ -115,6 +106,12 @@ class PostsPagesTests(TestCase):
         cache.clear()
 
     def test_pages_paginator(self):
+        for i in range(1, settings.PAGINATION_VALUE + 1):
+            Post.objects.create(
+                text=f'test text{i}',
+                author=self.author,
+                group=self.group
+            )
         responses = [
             PROFILE_URL1,
             GROUP_URL1,
@@ -143,8 +140,7 @@ class PostsPagesTests(TestCase):
         ]
         for reverse_name in pages:
             response = self.authorized_client.get(reverse_name)
-            post = Post.objects.get(id=self.post.id)
-            self.assertIn(post, response.context['page_obj'])
+            post = response.context['page_obj'][0]
             check_post_info(post)
         response = self.authorized_client.get(self.POST_URL)
         post = response.context['post']
@@ -181,9 +177,6 @@ class PostsPagesTests(TestCase):
         response = self.authorized_client.get(PROFILE_URL2)
         author = response.context['author']
         self.assertEqual(author.id, self.author2.id)
-        self.assertEqual(author.username, self.author2.username)
-        self.assertEqual(author.first_name, self.author2.first_name)
-        self.assertEqual(author.last_name, self.author2.last_name)
 
     def test_follow(self):
         self.user_client.get(FOLLOW_URL)

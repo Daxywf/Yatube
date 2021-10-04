@@ -20,9 +20,10 @@ SMALL_GIF = (
     b'\x0A\x00\x3B'
 )
 CREATE_URL = reverse('posts:post_create')
+USERNAME = 'test_profile'
 PROFILE_URL = reverse(
     'posts:profile',
-    kwargs={'username': 'test_profile'}
+    kwargs={'username': USERNAME}
 )
 
 
@@ -36,7 +37,7 @@ class PostCreateFormTests(TestCase):
             slug='test-slug'
         )
         cls.user = User.objects.create(
-            username='test_profile'
+            username=USERNAME
         )
         cls.form = PostForm()
         cls.post = Post.objects.create(
@@ -97,7 +98,7 @@ class PostCreateFormTests(TestCase):
         )
         self.assertEqual(len(ids2 - ids1), 1)
         post = Post.objects.get(
-            id__in=(ids2 - ids1)
+            id=(ids2 - ids1).pop()
         )
         self.assertEqual(new_posts_count, posts_count + 1)
         self.assertEqual(post.text, form_data['text'])
@@ -190,12 +191,13 @@ class PostCreateFormTests(TestCase):
         )
         new_comments_count = self.post.comments.count()
         self.assertEqual(comments_count + 1, new_comments_count)
+        self.assertEqual(new_comments_count, 1)
         comment = self.post.comments.last()
         self.assertEqual(comment.text, form_data['text'])
         self.assertEqual(comment.author, self.user)
         self.assertEqual(comment.post, self.post)
 
-    def test_post_create_page_shows_correct_context(self):
+    def test_post_create_and_edit_pages_show_correct_context(self):
         form_fields = {
             'text': forms.fields.CharField,
             'group': forms.fields.ChoiceField,
@@ -203,18 +205,14 @@ class PostCreateFormTests(TestCase):
         }
         for value, expected in form_fields.items():
             with self.subTest(value=value):
-                response = self.authorized_client.get(CREATE_URL)
-                form_field = response.context.get('form').fields.get(value)
-                self.assertIsInstance(form_field, expected)
-
-    def test_post_edit_page_shows_correct_context(self):
-        form_fields = {
-            'text': forms.fields.CharField,
-            'group': forms.fields.ChoiceField,
-            'image': forms.fields.ImageField
-        }
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                response = self.authorized_client.get(self.EDIT_URL)
-                form_field = response.context.get('form').fields.get(value)
-                self.assertIsInstance(form_field, expected)
+                reverse_names = [
+                    CREATE_URL,
+                    self.EDIT_URL
+                ]
+                for reverse_name in reverse_names:
+                    with self.subTest(reverse_name=reverse_name):
+                        response = self.authorized_client.get(reverse_name)
+                        form_field = response.context.get(
+                            'form'
+                        ).fields.get(value)
+                        self.assertIsInstance(form_field, expected)
