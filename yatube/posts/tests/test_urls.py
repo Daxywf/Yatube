@@ -77,7 +77,11 @@ class PostsURLTests(TestCase):
              HTTPStatus.OK]
         ]
         for adress, client, status in pages:
-            with self.subTest(adress=adress):
+            with self.subTest(
+                adress=adress,
+                client=client,
+                status=status
+            ):
                 self.assertEqual(
                     client.get(adress).status_code, status
                 )
@@ -110,7 +114,11 @@ class PostsURLTests(TestCase):
              self.POST_URL]
         ]
         for url, client, redirect_url in redirects:
-            with self.subTest(url=url):
+            with self.subTest(
+                url=url,
+                client=client,
+                redirect_url=redirect_url
+            ):
                 self.assertRedirects(
                     client.get(url, follow=True),
                     redirect_url

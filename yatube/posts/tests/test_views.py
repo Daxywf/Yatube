@@ -140,6 +140,7 @@ class PostsPagesTests(TestCase):
         ]
         for reverse_name in pages:
             response = self.authorized_client.get(reverse_name)
+            self.assertEqual(len(response.context['page_obj']), 1)
             post = response.context['page_obj'][0]
             check_post_info(post)
         response = self.authorized_client.get(self.POST_URL)
@@ -176,7 +177,7 @@ class PostsPagesTests(TestCase):
     def test_post_on_profile_page_has_correct_author(self):
         response = self.authorized_client.get(PROFILE_URL2)
         author = response.context['author']
-        self.assertEqual(author.id, self.author2.id)
+        self.assertEqual(author, self.author2)
 
     def test_follow(self):
         self.user_client.get(FOLLOW_URL)

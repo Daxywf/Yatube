@@ -8,7 +8,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from ..forms import PostForm
-from ..models import Group, Post, User
+from ..models import Group, Post, User, Comment
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 SMALL_GIF = (
@@ -90,17 +90,16 @@ class PostCreateFormTests(TestCase):
             data=form_data,
             follow=True
         )
-        ids2 = set(post.id for post in Post.objects.all())
-        new_posts_count = len(ids2)
+        ids1 = set(post.id for post in Post.objects.all()) - ids1
         self.assertRedirects(
             response,
             PROFILE_URL
         )
-        self.assertEqual(len(ids2 - ids1), 1)
+        self.assertEqual(len(ids1), 1)
         post = Post.objects.get(
-            id=(ids2 - ids1).pop()
+            id=ids1.pop()
         )
-        self.assertEqual(new_posts_count, posts_count + 1)
+        self.assertEqual(Post.objects.count(), posts_count + 1)
         self.assertEqual(post.text, form_data['text'])
         self.assertEqual(post.group.id, form_data['group'])
         self.assertEqual(post.author, self.user)
@@ -191,8 +190,8 @@ class PostCreateFormTests(TestCase):
         )
         new_comments_count = self.post.comments.count()
         self.assertEqual(comments_count + 1, new_comments_count)
-        self.assertEqual(new_comments_count, 1)
-        comment = self.post.comments.last()
+        self.assertEqual(Comment.objects.count(), 1)
+        comment = Comment.objects.last()
         self.assertEqual(comment.text, form_data['text'])
         self.assertEqual(comment.author, self.user)
         self.assertEqual(comment.post, self.post)
@@ -203,15 +202,15 @@ class PostCreateFormTests(TestCase):
             'group': forms.fields.ChoiceField,
             'image': forms.fields.ImageField
         }
-        for value, expected in form_fields.items():
-            with self.subTest(value=value):
-                reverse_names = [
-                    CREATE_URL,
-                    self.EDIT_URL
-                ]
-                for reverse_name in reverse_names:
-                    with self.subTest(reverse_name=reverse_name):
-                        response = self.authorized_client.get(reverse_name)
+        reverse_names = [
+            CREATE_URL,
+            self.EDIT_URL
+        ]
+        for reverse_name in reverse_names:
+            with self.subTest(reverse_name=reverse_name):
+                response = self.authorized_client.get(reverse_name)
+                for value, expected in form_fields.items():
+                    with self.subTest(value=value):
                         form_field = response.context.get(
                             'form'
                         ).fields.get(value)

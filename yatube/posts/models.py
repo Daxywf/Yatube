@@ -11,7 +11,7 @@ class Group(models.Model):
     )
     slug = models.SlugField(
         unique=True,
-        verbose_name='Слаг группы'
+        verbose_name='Идентификатор группы'
     )
     description = models.TextField(
         verbose_name='Описание группы'
