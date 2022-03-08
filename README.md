@@ -1,3 +1,26 @@
-# hw05_final
+# hw_05_final
+Проект Yatube - сервис для публикации дневников
 
-[![CI](https://github.com/yandex-praktikum/hw05_final/actions/workflows/python-app.yml/badge.svg?branch=master)](https://github.com/yandex-praktikum/hw05_final/actions/workflows/python-app.yml)
+## Описание
+Позволяет работать со следующими объектами:
+- Пользователи
+- Группы
+- Посты
+- Комментарии к постам
+- Подписки на авторов
+
+## Как запустить проект
+- Клонировать репозиторий и перейти в него ```git clone https://github.com/Daxywf/hw05_final``` ```cd hw_05_final```
+- Запустить сервер ```python manage.py runserver```
+
+При первом запуске
+- Выполнить миграции
+```python manage.py migrate```
+- При желании создать суперпользователя
+```python manage.py createsuperuser```
+В проекте реализованы юнит-тесты
+- Команда для запуска тестирования: ```python manage.py test```
+
+## Участники
+
+Дмитрий Деев
